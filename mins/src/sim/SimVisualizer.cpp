@@ -18,6 +18,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#if ROS_AVAILABLE == 1
+
 #include "SimVisualizer.h"
 #include "SimulationPlane.h"
 #include "core/ROSHelper.h"
@@ -252,3 +254,5 @@ void SimVisualizer::visualize_final() {
   PRINT2(BOLDYELLOW "RMSE average: %.3f, %.3f (deg,m)\n" RESET, sum_rmse_ori / sum_cnt, sum_rmse_pos / sum_cnt);
   PRINT2(BOLDYELLOW "NEES average: %.3f, %.3f (deg,m)\n" RESET, sum_nees_ori / sum_cnt, sum_nees_pos / sum_cnt);
 }
+
+#endif // ROS_AVAILABLE == 1

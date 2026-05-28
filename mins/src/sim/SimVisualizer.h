@@ -22,8 +22,10 @@
 #define MINS_SIMVISUALIZER_H
 
 #include <Eigen/Eigen>
-#include <geometry_msgs/PoseStamped.h>
 #include <memory>
+
+#if ROS_AVAILABLE == 1
+#include <geometry_msgs/PoseStamped.h>
 
 namespace tf {
 class TransformBroadcaster;
@@ -32,8 +34,11 @@ namespace ros {
 class Publisher;
 class NodeHandle;
 } // namespace ros
+#endif
 
 namespace mins {
+
+#if ROS_AVAILABLE == 1
 class Simulator;
 class SystemManager;
 class ROSPublisher;
@@ -81,6 +86,16 @@ private:
   std::shared_ptr<tf::TransformBroadcaster> mTfBr;
   bool traj_in_enu = false;
 };
+#else
+// ROS2: SimVisualizer not yet ported, forward declare only for Simulator friend reference
+class SimVisualizer {
+public:
+  template <typename... Args>
+  SimVisualizer(Args&&... /*unused*/) {}
+  ~SimVisualizer() {}
+};
+#endif
+
 } // namespace mins
 
 #endif // MINS_SIMVISUALIZER_H

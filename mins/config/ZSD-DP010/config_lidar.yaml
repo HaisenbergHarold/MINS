@@ -1,0 +1,43 @@
+%YAML:1.0 # need to specify the file type at the top!
+
+lidar:
+  enabled: true
+  max_n: 1
+  do_calib_dt: false
+  do_calib_ext: false
+  init_cov_dt: 1e-4
+  init_cov_ex_o: 1e-6
+  init_cov_ex_p: 1e-6
+  max_range: 200.0
+  min_range: 4.5
+  chi2_mult: 3
+  raw_do_downsample: true
+  raw_downsample_size: 2.0
+  raw_noise: 0.1
+  raw_remove_motion_blur: false
+  raw_point_dt: 1e-6
+  map_do_downsample: true
+  map_downsample_size: 0.5
+  map_noise: 0.1
+  map_ngbr_num: 5
+  map_ngbr_max_d: 10.0
+  map_decay_time: 30
+  map_decay_dist: 30
+  map_use_icp: false
+  map_icp_dist: 30
+  plane_max_p2pd: 0.1
+  plane_max_condi: 200.0
+
+lidar0:
+  timeoffset: -0.0
+  # T_imu_lidar from multim1p_ZSD-DP010.yaml:
+  # til = [1.47, 0.0, -1.18]
+  # Ril = [[0.983024, 0.0198843, 0.182398],
+  #        [0.0227596, -0.999647, -0.0136837],
+  #        [0.182062, 0.0176027, -0.98313]]
+  T_imu_lidar:
+    - [0.983024, 0.0198843, 0.182398, 1.47]
+    - [0.0227596, -0.999647, -0.0136837, 0.0]
+    - [0.182062, 0.0176027, -0.98313, -1.18]
+    - [0.0, 0.0, 0.0, 1.0]
+  topic: "/zeron/driver/lidar/pc_lidar_f_3"

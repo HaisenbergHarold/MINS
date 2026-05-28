@@ -28,69 +28,77 @@
 #ifndef MINS_ROSSUBSCRIBER_H
 #define MINS_ROSSUBSCRIBER_H
 
-#include "ros/ros.h"
-#include "sensor_msgs/CompressedImage.h"
-#include "sensor_msgs/Image.h"
-#include "sensor_msgs/Imu.h"
-#include "sensor_msgs/JointState.h"
-#include "sensor_msgs/NavSatFix.h"
-#include "sensor_msgs/PointCloud2.h"
+#include "ROSHelper.h"
+#include "core/SystemManager.h"
+#include "options/OptionsCamera.h"
+#include "options/OptionsGPS.h"
+#include "state/State.h"
+#include "types/PoseJPL.h"
+#include "utils/Print_Logger.h"
+#include <Eigen/Eigen>
+#include <gnss_msgs/msg/dao_yuan_gnss.hpp>
+#include <gnss_msgs/msg/dao_yuan_imu.hpp>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <image_transport/image_transport.hpp>
+#include <image_transport/subscriber_filter.hpp>
+#include <memory>
+#include <string>
 
 using namespace std;
-using namespace sensor_msgs;
+using namespace Eigen;
+
 namespace mins {
 
-class SystemManager;
-struct OptionsEstimator;
-class ROSPublisher;
 class ROSSubscriber {
 
 public:
-  /// ROS message subscriber
-  ROSSubscriber(shared_ptr<ros::NodeHandle> nh, shared_ptr<SystemManager> sys, shared_ptr<ROSPublisher> pub);
+    /// Creator: loads settings
+  ROSSubscriber(shared_ptr<rclcpp::Node> node, shared_ptr<SystemManager> sys, shared_ptr<OptionsEstimator> op);
 
-  /// Callback for IMU
-  void callback_inertial(const Imu::ConstPtr &msg);
+  /// Callbacks
+  void callback_imu(const sensor_msgs::msg::Imu::ConstSharedPtr &msg);
+  void callback_wheel(const sensor_msgs::msg::JointState::ConstSharedPtr &msg);
+  void callback_gps(const sensor_msgs::msg::NavSatFix::ConstSharedPtr &msg);
+  void callback_lidar(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void callback_camera(const sensor_msgs::msg::Image::ConstSharedPtr &msg0, const sensor_msgs::msg::Image::ConstSharedPtr &msg1);
 
-  /// Callback for Wheel
-  void callback_wheel(const JointStateConstPtr &msg);
+  /// DaoYuan callbacks: GNSS and IMU
+  void callback_daoyuan_gnss(const gnss_msgs::msg::DaoYuanGnss::ConstSharedPtr &msg);
+  void callback_daoyuan_imu(const gnss_msgs::msg::DaoYuanImu::ConstSharedPtr &msg);
 
-  /// Callback for GNSS
-  void callback_gnss(const NavSatFixConstPtr &msg, int gps_id);
-
-  /// Callback for LiDAR
-  void callback_lidar(const PointCloud2ConstPtr &msg, int lidar_id);
-
-  /// Callback for monocular camera (image, compressed image)
-  void callback_monocular_I(const ImageConstPtr &msg, int cam_id);
-  void callback_monocular_C(const CompressedImageConstPtr &msg, int cam_id);
-
-  /// Callback for synchronized stereo camera (image, compressed image)
-  void callback_stereo_I(const ImageConstPtr &msg0, const ImageConstPtr &msg1, int cam_id0, int cam_id1);
-  void callback_stereo_C(const CompressedImageConstPtr &msg0, const CompressedImageConstPtr &msg1, int cam_id0, int cam_id1);
-
-private:
-  /// Global node handler
-  shared_ptr<ros::NodeHandle> nh;
-
-  /// MINS system
+  /// System manager and options
   shared_ptr<SystemManager> sys;
+  shared_ptr<OptionsEstimator> options;
 
-  /// ROS publisher
-  shared_ptr<ROSPublisher> pub;
+protected:
+  /// Node
+  shared_ptr<rclcpp::Node> node_;
 
-  /// Options
-  shared_ptr<OptionsEstimator> op;
+  /// Subscribers
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr sub_wheel;
+  rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr sub_gps;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_lidar;
 
-  /// Our subscribers and camera synchronizers
-  vector<ros::Subscriber> subs;
-  typedef message_filters::sync_policies::ApproximateTime<Image, Image> sync_pol;
-  vector<shared_ptr<message_filters::Synchronizer<sync_pol>>> sync_cam;
-  vector<shared_ptr<message_filters::Subscriber<Image>>> sync_subs_cam;
+  /// DaoYuan subscribers
+  rclcpp::Subscription<gnss_msgs::msg::DaoYuanGnss>::SharedPtr sub_daoyuan_gnss;
+  rclcpp::Subscription<gnss_msgs::msg::DaoYuanImu>::SharedPtr sub_daoyuan_imu;
+
+  /// Camera subscribers (image_transport + synchronization)
+  shared_ptr<image_transport::ImageTransport> it_;
+  image_transport::SubscriberFilter sub_cam0, sub_cam1;
+  typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image> sync_pol_cam;
+  shared_ptr<message_filters::Synchronizer<sync_pol_cam>> sync_cam;
 };
+
 } // namespace mins
 
 #endif // MINS_ROSSUBSCRIBER_H

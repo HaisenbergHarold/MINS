@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.3)
-project(ov_core)
+
+# Skip standalone project() and ament_package() when built as subdirectory
+if(NOT OV_CORE_AS_SUBDIRECTORY)
+  project(ov_core)
+endif()
 
 # Include libraries (if we don't have opencv 4, then fallback to opencv 3)
 # The OpenCV version needs to match the one used by cv_bridge otherwise you will get a segmentation fault!
@@ -56,12 +60,13 @@ if (catkin_FOUND)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ROS1.cmake)
 elseif (ament_cmake_FOUND)
     message(STATUS "ROS *2* version found, building ROS2.cmake")
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ROS2.cmake)
+    # When built as subdirectory, use an adapted ROS2 build that skips package-level calls
+    if(OV_CORE_AS_SUBDIRECTORY)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ROS2_subdir.cmake)
+    else()
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ROS2.cmake)
+    endif()
 else ()
     message(STATUS "No ROS versions found, building ROS1.cmake")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ROS1.cmake)
 endif ()
-
-
-
-

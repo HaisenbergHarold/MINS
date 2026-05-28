@@ -74,6 +74,17 @@ struct OptionsEstimator {
   /// Initialization options
   shared_ptr<OptionsInit> init;
 
+  /// Topic names (Aura integration)
+  std::string node_imu_topic;
+  std::string node_gps_topic;
+  std::string node_lidar_topic;
+  std::string node_daoyuan_gps_topic;
+  std::string node_daoyuan_imu_topic;
+  std::string node_wheel_topic;
+  std::string node_camera_topic0;
+  std::string node_camera_topic1;
+  std::string node_vicon_topic;
+
   /// Gravity in the global frame
   Eigen::Vector3d gravity = Eigen::Vector3d::Zero();
 

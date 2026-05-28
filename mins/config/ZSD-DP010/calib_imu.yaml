@@ -1,0 +1,51 @@
+%YAML:1.0 # need to specify the file type at the top!
+
+imu:
+  # IMU topic: subscribe to DaoYuan IMU messages
+  topic: "/zeron/localization/daoyuan/imu_info"
+  # Use DaoYuan custom message type
+  use_daoyuan_msg: true
+
+  model: "kalibr"
+  timeshift_imu_cam: 0
+
+  # Sigma of the white noise and random walk
+  sigma_w: 1
+  sigma_a: 1
+  sigma_wb: 1
+  sigma_ab: 1
+
+  # Gravity
+  gravity: 9.81
+
+  # Calibration: accelerometer
+  acc_id:
+    - 1
+    - 1
+    - 1
+  acc_d:
+    - 0
+    - 0
+    - 0
+  acc_m:
+    - [1, 0, 0]
+    - [0, 1, 0]
+    - [0, 0, 1]
+
+  # Calibration: gyroscope
+  gyr_id:
+    - 1
+    - 1
+    - 1
+  gyr_d:
+    - 0
+    - 0
+    - 0
+  gyr_m:
+    - [1, 0, 0]
+    - [0, 1, 0]
+    - [0, 0, 1]
+
+  # DaoYuan IMU fields: acc in m/s^2, gyro in deg/s
+  # Conversion: gyro is in deg/s in DaoYuan, we convert to rad/s
+  daoyuan_gyro_is_deg: false

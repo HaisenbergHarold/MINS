@@ -67,6 +67,15 @@ struct OptionsGPS {
   /// Bool to determine whether or not to calibrate extrinsics
   bool do_calib_ext = true;
 
+  /// Whether extrinsic rotation from GNSS to IMU is configured
+  bool has_rotation = false;
+
+  /// Rotation from GNSS frame to IMU frame (R_I_G)
+  Eigen::Matrix3d R_imu_gps = Eigen::Matrix3d::Identity();
+
+  /// Translation from IMU to GNSS in IMU frame (p_IinG)
+  Eigen::Vector3d p_imu_gps = Eigen::Vector3d::Zero();
+
   /// Distance threshold for initializing GPS initialization
   double init_distance = 30;
 

@@ -26,167 +26,205 @@
  */
 
 #include "ROSSubscriber.h"
-#include "ROSHelper.h"
-#include "ROSPublisher.h"
-#include "SystemManager.h"
-#include "options/OptionsCamera.h"
+#include "core/SystemManager.h"
 #include "options/OptionsEstimator.h"
 #include "options/OptionsGPS.h"
-#include "options/OptionsIMU.h"
 #include "options/OptionsLidar.h"
 #include "options/OptionsWheel.h"
 #include "state/State.h"
 #include "update/gps/GPSTypes.h"
-#include "update/wheel/WheelTypes.h"
+#include "update/lidar/LidarTypes.h"
 #include "utils/Print_Logger.h"
+#include <Eigen/Geometry>
 
 using namespace std;
 using namespace Eigen;
 using namespace mins;
 
-ROSSubscriber::ROSSubscriber(std::shared_ptr<ros::NodeHandle> nh, std::shared_ptr<SystemManager> sys, std::shared_ptr<ROSPublisher> pub) : nh(nh), sys(sys), pub(pub) {
-  // Copy option for easier access
-  op = sys->state->op;
+ROSSubscriber::ROSSubscriber(shared_ptr<rclcpp::Node> node, shared_ptr<SystemManager> sys, shared_ptr<OptionsEstimator> op)
+    : node_(node), sys(sys), options(op) {
 
-  // Create imu subscriber (handle legacy ros param info)
-  subs.push_back(nh->subscribe(op->imu->topic, 1000, &ROSSubscriber::callback_inertial, this));
-  PRINT2("subscribing to imu: %s\n", op->imu->topic.c_str());
-
-  // Create camera subscriber
-  if (op->cam->enabled) {
-    for (int i = 0; i < op->cam->max_n; i++) {
-      // Check if this is stereo
-      if (op->cam->stereo_pairs.find(i) != op->cam->stereo_pairs.end()) {
-        if (i < op->cam->stereo_pairs.at(i)) {
-          // Logic for sync stereo subscriber
-          // https://answers.ros.org/question/96346/subscribe-to-two-image_raws-with-one-function/?answer=96491#post-id-96491
-          int cam_id0 = i;
-          int cam_id1 = op->cam->stereo_pairs.at(i);
-          // Create sync filter (they have unique pointers internally, so we have to use move logic here...)
-          auto image_sub0 = std::make_shared<message_filters::Subscriber<Image>>(*nh, op->cam->topic.at(cam_id0), 1);
-          auto image_sub1 = std::make_shared<message_filters::Subscriber<Image>>(*nh, op->cam->topic.at(cam_id1), 1);
-          auto sync = std::make_shared<message_filters::Synchronizer<sync_pol>>(sync_pol(10), *image_sub0, *image_sub1);
-          sync->registerCallback(boost::bind(&ROSSubscriber::callback_stereo_I, this, _1, _2, 0, 1));
-          // Append to our vector of subscribers
-          sync_cam.push_back(sync);
-          sync_subs_cam.push_back(image_sub0);
-          sync_subs_cam.push_back(image_sub1);
-          PRINT2("subscribing to cam (stereo): %s\n", op->cam->topic.at(cam_id0).c_str());
-          PRINT2("subscribing to cam (stereo): %s\n", op->cam->topic.at(cam_id1).c_str());
-        }
-      } else {
-        // create MONO subscriber
-        subs.push_back(nh->subscribe<Image>(op->cam->topic.at(i), 10, boost::bind(&ROSSubscriber::callback_monocular_I, this, _1, i)));
-        PRINT2("subscribing to cam (mono): %s\n", op->cam->topic.at(i).c_str());
-      }
-    }
+  // =======================================================================
+  // IMU subscriber
+  // =======================================================================
+  if (!options->node_imu_topic.empty()) {
+    sub_imu = node_->create_subscription<sensor_msgs::msg::Imu>(options->node_imu_topic, rclcpp::QoS(100),
+                                                                std::bind(&ROSSubscriber::callback_imu, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to IMU: %s\n" RESET, options->node_imu_topic.c_str());
   }
 
-  // Create wheel subscriber
-  if (op->wheel->enabled) {
-    subs.push_back(nh->subscribe(op->wheel->topic, 1000, &ROSSubscriber::callback_wheel, this));
-    PRINT2("subscribing to wheel: %s\n", op->wheel->topic.c_str());
+  // =======================================================================
+  // Wheel subscriber
+  // =======================================================================
+  if (!options->node_wheel_topic.empty()) {
+    sub_wheel = node_->create_subscription<sensor_msgs::msg::JointState>(
+        options->node_wheel_topic, rclcpp::QoS(10), std::bind(&ROSSubscriber::callback_wheel, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to Wheel: %s\n" RESET, options->node_wheel_topic.c_str());
   }
 
-  // Create gps subscriber
-  if (op->gps->enabled) {
-    for (int i = 0; i < op->gps->max_n; i++) {
-      subs.push_back(nh->subscribe<NavSatFix>(op->gps->topic.at(i), 1000, boost::bind(&ROSSubscriber::callback_gnss, this, _1, i)));
-      PRINT2("subscribing to GNSS: %s\n", op->gps->topic.at(i).c_str());
-    }
+  // =======================================================================
+  // GPS subscriber (standard NavSatFix)
+  // =======================================================================
+  if (!options->node_gps_topic.empty()) {
+    sub_gps = node_->create_subscription<sensor_msgs::msg::NavSatFix>(options->node_gps_topic, rclcpp::QoS(10),
+                                                                      std::bind(&ROSSubscriber::callback_gps, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to GPS (NavSatFix): %s\n" RESET, options->node_gps_topic.c_str());
   }
 
-  // Create lidar subscriber
-  if (op->lidar->enabled) {
-    for (int i = 0; i < op->lidar->max_n; i++) {
-      subs.push_back(nh->subscribe<PointCloud2>(op->lidar->topic.at(i), 2, boost::bind(&ROSSubscriber::callback_lidar, this, _1, i)));
-      PRINT2("subscribing to LiDAR: %s\n", op->lidar->topic.at(i).c_str());
-    }
+  // =======================================================================
+  // DaoYuan GPS subscriber
+  // =======================================================================
+  if (!options->node_daoyuan_gps_topic.empty()) {
+    sub_daoyuan_gnss = node_->create_subscription<gnss_msgs::msg::DaoYuanGnss>(
+        options->node_daoyuan_gps_topic, rclcpp::QoS(10),
+        std::bind(&ROSSubscriber::callback_daoyuan_gnss, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to DaoYuan GPS: %s\n" RESET, options->node_daoyuan_gps_topic.c_str());
+  }
+
+  // =======================================================================
+  // DaoYuan IMU subscriber
+  // =======================================================================
+  if (!options->node_daoyuan_imu_topic.empty()) {
+    sub_daoyuan_imu = node_->create_subscription<gnss_msgs::msg::DaoYuanImu>(
+        options->node_daoyuan_imu_topic, rclcpp::QoS(100),
+        std::bind(&ROSSubscriber::callback_daoyuan_imu, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to DaoYuan IMU: %s\n" RESET, options->node_daoyuan_imu_topic.c_str());
+  }
+
+  // =======================================================================
+  // LiDAR subscriber
+  // =======================================================================
+  if (!options->node_lidar_topic.empty()) {
+    sub_lidar = node_->create_subscription<sensor_msgs::msg::PointCloud2>(
+        options->node_lidar_topic, rclcpp::QoS(100),
+        std::bind(&ROSSubscriber::callback_lidar, this, std::placeholders::_1));
+    PRINT1(GREEN "[SUB] Subscribing to LiDAR: %s\n" RESET, options->node_lidar_topic.c_str());
+  }
+
+  // =======================================================================
+  // Camera subscribers (with synchronization via message_filters)
+  // =======================================================================
+  if (!options->node_camera_topic0.empty() && !options->node_camera_topic1.empty()) {
+    sub_cam0.subscribe(node_.get(), options->node_camera_topic0, "raw");
+    sub_cam1.subscribe(node_.get(), options->node_camera_topic1, "raw");
+    sync_cam = make_shared<message_filters::Synchronizer<sync_pol_cam>>(sync_pol_cam(10), sub_cam0, sub_cam1);
+    sync_cam->registerCallback(&ROSSubscriber::callback_camera, this);
+    PRINT1(GREEN "[SUB] Subscribing to Cameras: %s & %s\n" RESET, options->node_camera_topic0.c_str(),
+           options->node_camera_topic1.c_str());
   }
 }
 
-void ROSSubscriber::callback_inertial(const Imu::ConstPtr &msg) {
-  // convert into correct format & send it to our system
+// =======================================================================
+// IMU callback
+// =======================================================================
+void ROSSubscriber::callback_imu(const sensor_msgs::msg::Imu::ConstSharedPtr &msg) {
+  // Convert to our IMU data
   ov_core::ImuData imu = ROSHelper::Imu2Data(msg);
-  if (sys->feed_measurement_imu(imu)) {
-    pub->visualize();
-  }
-  pub->publish_imu();
-  PRINT1(YELLOW "[SUB] IMU measurement: %.3f" RESET, imu.timestamp);
-  PRINT1(YELLOW "|%.3f,%.3f,%.3f|%.3f,%.3f,%.3f\n" RESET, imu.wm(0), imu.wm(1), imu.wm(2), imu.am(0), imu.am(1), imu.am(2));
+  sys->feed_measurement_imu(imu);
 }
 
-void ROSSubscriber::callback_monocular_I(const ImageConstPtr &msg, int cam_id) {
-  // convert into correct format & send it to our system
-  ov_core::CameraData cam;
-  if (ROSHelper::Image2Data(msg, cam_id, cam, op->cam)) {
-    sys->feed_measurement_camera(cam);
-    pub->publish_cam_images(cam_id);
-    PRINT1(YELLOW "[SUB] MONO Cam measurement: %.3f|%d\n" RESET, msg->header.stamp.toSec(), cam_id);
+// =======================================================================
+// Wheel callback
+// =======================================================================
+void ROSSubscriber::callback_wheel(const sensor_msgs::msg::JointState::ConstSharedPtr &msg) {
+  WheelData wheel = ROSHelper::JointState2Data(msg);
+  sys->feed_measurement_wheel(wheel);
+}
+
+// =======================================================================
+// GPS callback (standard NavSatFix)
+// =======================================================================
+void ROSSubscriber::callback_gps(const sensor_msgs::msg::NavSatFix::ConstSharedPtr &msg) {
+  for (int i = 0; i < options->gps->max_n; i++) {
+    GPSData gps = ROSHelper::NavSatFix2Data(msg, i);
+    if (options->gps->extrinsics.find(i) == options->gps->extrinsics.end())
+      continue;
+
+    // Apply GPS rotation extrinsic if configured
+    if (options->gps->has_rotation) {
+      // R33_imu_gnss converts from GNSS frame to IMU frame
+      Matrix3d R_imu_gps = options->gps->R_imu_gps;
+      Vector3d gps_imu = R_imu_gps * gps.meas;
+      gps.meas = gps_imu;
+    } else {
+      // Apply translation only
+      gps.meas -= options->gps->p_imu_gps;
+    }
+
+    sys->feed_measurement_gps(gps, true);
   }
 }
 
-void ROSSubscriber::callback_monocular_C(const CompressedImageConstPtr &msg, int cam_id) {
-  // convert into correct format & send it to our system
-  ov_core::CameraData cam;
-  if (ROSHelper::Image2Data(msg, cam_id, cam, op->cam)) {
-    sys->feed_measurement_camera(cam);
-    pub->publish_cam_images(cam_id);
-    PRINT1(YELLOW "[SUB] MONO Cam measurement: %.3f|%d\n" RESET, msg->header.stamp.toSec(), cam_id);
+// =======================================================================
+// LiDAR callback
+// =======================================================================
+void ROSSubscriber::callback_lidar(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+  for (int i = 0; i < options->lidar->max_n; i++) {
+    auto cloud = ROSHelper::rosPC2pclPC(msg, i);
+    sys->feed_measurement_lidar(cloud);
   }
 }
 
-void ROSSubscriber::callback_stereo_I(const ImageConstPtr &msg0, const ImageConstPtr &msg1, int cam_id0, int cam_id1) {
-  // convert into correct format & send it to our system
-  ov_core::CameraData cam;
-  bool success0 = ROSHelper::Image2Data(msg0, cam_id0, cam, op->cam);
-  bool success1 = ROSHelper::Image2Data(msg1, cam_id1, cam, op->cam);
+// =======================================================================
+// Camera callback (synchronized stereo)
+// =======================================================================
+void ROSSubscriber::callback_camera(const sensor_msgs::msg::Image::ConstSharedPtr &msg0,
+                                    const sensor_msgs::msg::Image::ConstSharedPtr &msg1) {
+  ov_core::CameraData cam0, cam1;
+  bool success0 = ROSHelper::Image2Data(msg0, 0, cam0, options->cam);
+  bool success1 = ROSHelper::Image2Data(msg1, 1, cam1, options->cam);
   if (success0 && success1) {
-    sys->feed_measurement_camera(cam);
-    pub->publish_cam_images({cam_id0, cam_id1});
-    PRINT1(YELLOW "[SUB] STEREO Cam measurement: %.3f|%d|%d\n" RESET, msg0->header.stamp.toSec(), cam_id0, cam_id1);
+    // Merge
+    cam0.images.push_back(cam1.images.at(0));
+    cam0.sensor_ids.push_back(cam1.sensor_ids.at(0));
+    sys->feed_measurement_camera(cam0);
   }
 }
 
-void ROSSubscriber::callback_stereo_C(const CompressedImageConstPtr &msg0, const CompressedImageConstPtr &msg1, int cam_id0, int cam_id1) {
-  // convert into correct format & send it to our system
-  ov_core::CameraData cam;
-  bool success0 = ROSHelper::Image2Data(msg0, cam_id0, cam, op->cam);
-  bool success1 = ROSHelper::Image2Data(msg1, cam_id1, cam, op->cam);
-  if (success0 && success1) {
-    sys->feed_measurement_camera(cam);
-    pub->publish_cam_images({cam_id0, cam_id1});
-    PRINT1(YELLOW "[SUB] STEREO Cam measurement: %.3f|%d|%d\n" RESET, msg0->header.stamp.toSec(), cam_id0, cam_id1);
+// =======================================================================
+// DaoYuan GNSS callback
+// - Converts DaoYuanGnss message → GPSData
+// - Applies IMU-GNSS extrinsic (translation + rotation)
+//
+// DP010 example:
+//   t31_imu_gnss = [0.453, 0.677, 1.790]
+//   R33_imu_gnss = RPY[0, 0, 90] deg
+//
+// GPS measurement in GNSS frame: meas_gnss = [lat, lon, alt]
+// Rotate to IMU frame: meas_imu = R_imu_gps * meas_gnss + p_imu_gps
+// =======================================================================
+void ROSSubscriber::callback_daoyuan_gnss(const gnss_msgs::msg::DaoYuanGnss::ConstSharedPtr &msg) {
+  for (int i = 0; i < options->gps->max_n; i++) {
+    if (options->gps->extrinsics.find(i) == options->gps->extrinsics.end())
+      continue;
+
+    GPSData gps = ROSHelper::DaoYuanGnss2Data(msg, i);
+
+    // Apply IMU-GNSS extrinsic transformation
+    if (options->gps->has_rotation) {
+      // meas_gnss is [lat, lon, alt] in GNSS frame
+      // Transform: meas_imu = R_imu_gps * (meas_gnss - p_imu_gps)
+      Vector3d meas_imu = options->gps->R_imu_gps * gps.meas;
+      if (options->gps->p_imu_gps.norm() > 1e-6) {
+        meas_imu += options->gps->p_imu_gps;
+      }
+      gps.meas = meas_imu;
+    } else {
+      // Translation only
+      gps.meas -= options->gps->p_imu_gps;
+    }
+
+    sys->feed_measurement_gps(gps, false);
   }
 }
 
-void ROSSubscriber::callback_wheel(const JointStateConstPtr &msg) {
-  // Return if the message contains other than wheel measurement info
-  if (find(op->wheel->sub_topics.begin(), op->wheel->sub_topics.end(), msg->name.at(0)) == op->wheel->sub_topics.end())
-    return;
-
-  WheelData data = ROSHelper::JointState2Data(msg);
-  sys->feed_measurement_wheel(data);
-  PRINT1(YELLOW "[SUB] Wheel measurement: %.3f|%.3f,%.3f\n" RESET, data.time, data.m1, data.m2);
-}
-
-void ROSSubscriber::callback_gnss(const NavSatFixConstPtr &msg, int gps_id) {
-  // convert into correct format & send it to our system
-  GPSData data = ROSHelper::NavSatFix2Data(msg, gps_id);
-  // In case GNSS message does not have GNSS noise value or we want to overwrite it, use preset values
-  data.noise(0) <= 0.0 || op->gps->overwrite_noise ? data.noise(0) = op->gps->noise : double();
-  data.noise(1) <= 0.0 || op->gps->overwrite_noise ? data.noise(1) = op->gps->noise : double();
-  data.noise(2) <= 0.0 || op->gps->overwrite_noise ? data.noise(2) = op->gps->noise * 2 : double();
-  sys->feed_measurement_gps(data, true);
-  pub->publish_gps(data, true);
-  PRINT1(YELLOW "[SUB] GPS measurement: %.3f|%d|" RESET, data.time, data.id);
-  PRINT1(YELLOW "%.3f,%.3f,%.3f|%.3f,%.3f,%.3f\n" RESET, data.meas(0), data.meas(1), data.meas(2), data.noise(0), data.noise(1), data.noise(2));
-}
-
-void ROSSubscriber::callback_lidar(const PointCloud2ConstPtr &msg, int lidar_id) {
-  // convert into correct format & send it to our system
-  std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> data = ROSHelper::rosPC2pclPC(msg, lidar_id);
-  sys->feed_measurement_lidar(data);
-  pub->publish_lidar_cloud(data);
-  PRINT1(YELLOW "[SUB] LiDAR measurement: %.3f|%d\n" RESET, (double)msg->header.stamp.toSec() / 1000, lidar_id);
+// =======================================================================
+// DaoYuan IMU callback
+// Converts DaoYuanImu message → ov_core::ImuData
+// DaoYuan IMU typically provides angular velocity in deg/s and linear
+// acceleration in m/s^2
+// =======================================================================
+void ROSSubscriber::callback_daoyuan_imu(const gnss_msgs::msg::DaoYuanImu::ConstSharedPtr &msg) {
+  ov_core::ImuData imu = ROSHelper::DaoYuanImu2Data(msg);
+  sys->feed_measurement_imu(imu);
 }

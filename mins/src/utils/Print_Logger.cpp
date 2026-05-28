@@ -89,8 +89,8 @@ void Print_Logger::debugPrint(int level, const char location[], const char line[
   if (Print_Logger::current_print_level < 1) {
     std::string path(location);
     std::string base_filename = path.substr(path.find_last_of("/\\") + 1);
-    if (base_filename.size() > MAX_FILE_PATH_LEGTH) {
-      printf("%s", base_filename.substr(base_filename.size() - MAX_FILE_PATH_LEGTH, base_filename.size()).c_str());
+    if (base_filename.size() > Print_Logger::MAX_FILE_PATH_LEGTH) {
+      printf("%s", base_filename.substr(base_filename.size() - Print_Logger::MAX_FILE_PATH_LEGTH, base_filename.size()).c_str());
     } else {
       printf("%s", base_filename.c_str());
     }
