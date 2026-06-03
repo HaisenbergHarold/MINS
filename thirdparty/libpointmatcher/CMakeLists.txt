@@ -556,8 +556,8 @@ unset(_FILE_NAME)
 configure_file(pointmatcher.pc.in libpointmatcher.pc @ONLY)
 configure_file(pointmatcher.pc.in pointmatcher.pc @ONLY) # for backward compatibility
 install(FILES
-  ${CMAKE_BINARY_DIR}/libpointmatcher.pc
-  ${CMAKE_BINARY_DIR}/pointmatcher.pc # for backward compatibility
+  ${CMAKE_CURRENT_BINARY_DIR}/libpointmatcher.pc
+  ${CMAKE_CURRENT_BINARY_DIR}/pointmatcher.pc # for backward compatibility
   DESTINATION lib/pkgconfig
 )
 unset(LIBRARY_CC_ARGS)

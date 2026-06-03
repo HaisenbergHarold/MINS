@@ -1,0 +1,8 @@
+%YAML:1.0 # need to specify the file type at the top!
+
+init:
+  window_time: 1.0
+  imu_thresh: 1.5
+  imu_only_init: true
+  use_gt: false
+  cov_size: 1e-3

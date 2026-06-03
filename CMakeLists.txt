@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project(mins_package)
+project(mins)
+
+# Disable ament symlink install globally for this meta-package.
+# The mins subdirectory's find_package(ament_cmake) would otherwise activate
+# symlink-install extras that break ament_package() in this parent CMakeLists.
+set(AMENT_CMAKE_SYMLINK_INSTALL OFF CACHE INTERNAL "" FORCE)
 
 # Suppress Eigen array-bounds warning that breaks libpointmatcher on GCC 13
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-array-bounds")
@@ -23,5 +28,4 @@ add_subdirectory(mins)
 # Required for ament_package()
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-# Ament packaging
 ament_package()

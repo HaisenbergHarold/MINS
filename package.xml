@@ -2,7 +2,7 @@
 <package format="3">
 
     <!-- Package Information -->
-    <name>mins_package</name>
+    <name>mins</name>
     <version>1.0.0</version>
     <description>
         MINS: Efficient and Robust Multisensor-aided Inertial Navigation System

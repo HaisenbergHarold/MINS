@@ -48,6 +48,9 @@ struct OptionsGPS {
   /// rostopic to subscribe
   std::vector<std::string> topic;
 
+  /// Whether to use DaoYuan custom GNSS message format
+  bool use_daoyuan_msg = false;
+
   /// Initial calibration covariance (timeoffset, extrinsic)
   double init_cov_dt = 1e-3;
   double init_cov_ex = 1e-3;

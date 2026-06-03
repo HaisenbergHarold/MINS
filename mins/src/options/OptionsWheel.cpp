@@ -30,6 +30,8 @@ void mins::OptionsWheel::load(const std::shared_ptr<ov_core::YamlParser> &parser
       return;
     }
     parser->parse_external(f, "wheel", "enabled", enabled);
+    if (!enabled)
+      return;
     parser->parse_external(f, "wheel", "chi2_mult", chi2_mult);
     parser->parse_external(f, "wheel", "noise_w", noise_w);
     parser->parse_external(f, "wheel", "noise_v", noise_v);

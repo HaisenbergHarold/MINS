@@ -13,11 +13,17 @@ gps:
   chi2_mult: 9999
   overwrite_noise: true
   noise: 3.0
+  use_daoyuan_msg: true
+  has_rotation: true
+  # IMU→GNSS rotation: RPY [0, 0, 90] degrees
+  rpy_imu_gps: [0.0, 0.0, 90.0]
+  # IMU→GNSS lever arm: [0.453, 0.677, 1.790] (meters)
+  p_imu_gps: [0.453, 0.677, 1.790]
 
 gps0:
   timeoffset: 0.0
-  # DP010 IMU→GNSS lever arm: [0.453, 0.677, 1.790] (meters)
+  # Standard p_imu_gps (unused when has_rotation + use_daoyuan_msg are true)
   pGinI: [0.453, 0.677, 1.790]
   topic: "/zeron/localization/daoyuan/gnss_info"
-  # Flag to enable DaoYuan custom GNSS message parsing
+  # Per-sensor override for DaoYuan custom GNSS message parsing
   use_daoyuan_msg: true

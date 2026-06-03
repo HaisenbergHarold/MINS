@@ -37,6 +37,7 @@ void mins::OptionsIMU::load(const std::shared_ptr<ov_core::YamlParser> &parser) 
     parser->parse_external(f, "imu", "accel_noise", sigma_a);
     parser->parse_external(f, "imu", "accel_bias", sigma_ab);
     parser->parse_external(f, "imu", "topic", topic);
+    parser->parse_external(f, "imu", "use_daoyuan_msg", use_daoyuan_msg);
   }
 }
 
@@ -47,4 +48,5 @@ void mins::OptionsIMU::print() {
   PRINT1("\t- accel_noise: %.9f\n", sigma_wb);
   PRINT1("\t- accel_bias: %.9f\n", sigma_ab);
   PRINT1("\t- topic: %s\n", topic.c_str());
+  PRINT1("\t- use_daoyuan_msg: %s\n", use_daoyuan_msg ? "true" : "false");
 }

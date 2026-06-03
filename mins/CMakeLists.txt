@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-
+project(mins)  # 或者你的包名
 # We need c++14 for ROS2, thus just require it for everybody
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -160,12 +160,22 @@ install(TARGETS mins_lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
+# Install ov_core_lib built by thirdparty subdirectory (ROS2_subdir.cmake delegates install to parent)
+install(TARGETS ov_core_lib
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 # Skip install(DIRECTORY src/ ...) for headers to avoid symlink-install recursion
 # Headers are already available at compile time via target_include_directories
+# install(DIRECTORY config/
+#   DESTINATION share/${PROJECT_NAME}/config
+# )
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
+  PATTERN ".gitkeep" EXCLUDE  # 如果有占位文件
+  PATTERN ".DS_Store" EXCLUDE
 )
-
 ##################################################
 # Make binary files!
 ##################################################
@@ -180,6 +190,5 @@ install(TARGETS subscribe
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
 )
-
 # Ament packaging
 ament_package()

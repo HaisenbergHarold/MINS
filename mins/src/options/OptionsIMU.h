@@ -48,6 +48,9 @@ struct OptionsIMU {
   /// rostopic to subscribe
   std::string topic;
 
+  /// Whether to use DaoYuan custom IMU message format
+  bool use_daoyuan_msg = false;
+
   /// IMU noise (gyroscope and accelerometer)
   /// Gyroscope white noise (rad/s/sqrt(hz))
   double sigma_w = 1.6968e-04;

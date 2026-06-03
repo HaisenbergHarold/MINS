@@ -41,6 +41,24 @@ void mins::OptionsGPS::load(const std::shared_ptr<ov_core::YamlParser> &parser) 
     parser->parse_external(f, "gps", "init_cov_inflation", init_cov_inflation);
     parser->parse_external(f, "gps", "overwrite_noise", overwrite_noise);
     parser->parse_external(f, "gps", "noise", noise);
+    parser->parse_external(f, "gps", "use_daoyuan_msg", use_daoyuan_msg);
+    parser->parse_external(f, "gps", "has_rotation", has_rotation);
+    // Parse IMU-GNSS translation p_imu_gps (only used when has_rotation is true, for DaoYuan GNSS)
+    if (has_rotation) {
+      std::vector<double> p_ig = {0, 0, 0};
+      parser->parse_external(f, "gps", "p_imu_gps", p_ig);
+      p_imu_gps = Eigen::Vector3d(p_ig.at(0), p_ig.at(1), p_ig.at(2));
+      // Parse rotation as RPY Euler angles in degrees (optional, defaults to [0,0,0])
+      std::vector<double> rpy = {0, 0, 0};
+      parser->parse_external(f, "gps", "rpy_imu_gps", rpy, false);
+      // Convert RPY (degrees) → rotation matrix
+      Eigen::Vector3d rpy_rad(rpy.at(0) * M_PI / 180.0, rpy.at(1) * M_PI / 180.0, rpy.at(2) * M_PI / 180.0);
+      Eigen::Matrix3d R_x, R_y, R_z;
+      R_x = Eigen::AngleAxisd(rpy_rad(0), Eigen::Vector3d::UnitX()).toRotationMatrix();
+      R_y = Eigen::AngleAxisd(rpy_rad(1), Eigen::Vector3d::UnitY()).toRotationMatrix();
+      R_z = Eigen::AngleAxisd(rpy_rad(2), Eigen::Vector3d::UnitZ()).toRotationMatrix();
+      R_imu_gps = R_z * R_y * R_x;
+    }
     for (int i = 0; i < max_n; i++) {
       load_i(parser, i);
     }
@@ -54,7 +72,7 @@ void mins::OptionsGPS::load_i(const std::shared_ptr<ov_core::YamlParser> &parser
   parser->parse_external(f, "gps" + std::to_string(i), "timeoffset", toff);
   dt.insert({i, toff});
 
-  // Extrinsics
+  // Extrinsics (only used when has_rotation is false / standard GPS path)
   std::vector<double> T = {0, 0, 0};
   parser->parse_external(f, "gps" + std::to_string(i), "pGinI", T);
   Eigen::Vector3d eigen(T.at(0), T.at(1), T.at(2));
@@ -63,6 +81,11 @@ void mins::OptionsGPS::load_i(const std::shared_ptr<ov_core::YamlParser> &parser
   std::string gps_topic;
   parser->parse_external(f, "gps" + std::to_string(i), "topic", gps_topic);
   topic.push_back(gps_topic);
+
+  // Per-sensor use_daoyuan_msg override
+  bool daoyuan_i = use_daoyuan_msg;
+  parser->parse_external(f, "gps" + std::to_string(i), "use_daoyuan_msg", daoyuan_i);
+  if (i == 0) use_daoyuan_msg = daoyuan_i;
 }
 
 void mins::OptionsGPS::print() {
@@ -81,6 +104,14 @@ void mins::OptionsGPS::print() {
   PRINT1("\t- init_distance: %.2f\n", init_distance);
   PRINT1("\t- overwrite_noise: %s\n", overwrite_noise ? "true" : "false");
   PRINT1("\t- noise: %.2f\n", noise);
+  PRINT1("\t- use_daoyuan_msg: %s\n", use_daoyuan_msg ? "true" : "false");
+  PRINT1("\t- has_rotation: %s\n", has_rotation ? "true" : "false");
+  if (has_rotation) {
+    PRINT1("\t- p_imu_gps: %.3f %.3f %.3f\n", p_imu_gps(0), p_imu_gps(1), p_imu_gps(2));
+    PRINT1("\t- R_imu_gps: %.6f %.6f %.6f\n", R_imu_gps(0,0), R_imu_gps(0,1), R_imu_gps(0,2));
+    PRINT1("\t             %.6f %.6f %.6f\n", R_imu_gps(1,0), R_imu_gps(1,1), R_imu_gps(1,2));
+    PRINT1("\t             %.6f %.6f %.6f\n", R_imu_gps(2,0), R_imu_gps(2,1), R_imu_gps(2,2));
+  }
   for (int i = 0; i < max_n; i++) {
     print_i(i);
   }

@@ -101,6 +101,59 @@ void mins::OptionsEstimator::load(const std::shared_ptr<ov_core::YamlParser> &pa
   wheel->load(parser);
   lidar->load(parser);
   vicon->load(parser);
+
+  // =======================================================================
+  // Bridge per-sensor topics to node_*_topic fields (Aura integration)
+  // =======================================================================
+  // IMU: route to standard or DaoYuan subscriber based on use_daoyuan_msg
+  if (!imu->topic.empty()) {
+    if (imu->use_daoyuan_msg) {
+      node_daoyuan_imu_topic = imu->topic;
+      PRINT1(GREEN "[EST] IMU (DaoYuan): %s\n" RESET, imu->topic.c_str());
+    } else {
+      node_imu_topic = imu->topic;
+      PRINT1(GREEN "[EST] IMU (standard): %s\n" RESET, imu->topic.c_str());
+    }
+  }
+
+  // LiDAR
+  if (lidar->enabled && lidar->max_n > 0 && !lidar->topic.empty()) {
+    node_lidar_topic = lidar->topic.at(0);
+    PRINT1(GREEN "[EST] LiDAR: %s\n" RESET, lidar->topic.at(0).c_str());
+  }
+
+  // GPS: route to standard or DaoYuan subscriber based on use_daoyuan_msg
+  if (gps->enabled && gps->max_n > 0 && !gps->topic.empty()) {
+    if (gps->use_daoyuan_msg) {
+      node_daoyuan_gps_topic = gps->topic.at(0);
+      PRINT1(GREEN "[EST] GPS (DaoYuan): %s\n" RESET, gps->topic.at(0).c_str());
+    } else {
+      node_gps_topic = gps->topic.at(0);
+      PRINT1(GREEN "[EST] GPS (standard): %s\n" RESET, gps->topic.at(0).c_str());
+    }
+  }
+
+  // Wheel (single topic string, not vector)
+  if (wheel->enabled && !wheel->topic.empty()) {
+    node_wheel_topic = wheel->topic;
+    PRINT1(GREEN "[EST] Wheel: %s\n" RESET, wheel->topic.c_str());
+  }
+
+  // Cameras
+  if (cam->enabled && cam->max_n > 1) {
+    if (!cam->topic.empty()) {
+      node_camera_topic0 = cam->topic.at(0);
+      node_camera_topic1 = cam->topic.at(1);
+      PRINT1(GREEN "[EST] Camera0: %s\n" RESET, cam->topic.at(0).c_str());
+      PRINT1(GREEN "[EST] Camera1: %s\n" RESET, cam->topic.at(1).c_str());
+    }
+  }
+
+  // Vicon
+  if (vicon->enabled && vicon->max_n > 0 && !vicon->topic.empty()) {
+    node_vicon_topic = vicon->topic.at(0);
+    PRINT1(GREEN "[EST] Vicon: %s\n" RESET, vicon->topic.at(0).c_str());
+  }
 }
 
 void mins::OptionsEstimator::print() {

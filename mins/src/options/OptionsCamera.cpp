@@ -38,6 +38,8 @@ void mins::OptionsCamera::load(const std::shared_ptr<ov_core::YamlParser> &parse
       return;
     }
     parser->parse_external(f, "cam", "enabled", enabled);
+    if (!enabled)
+      return;
     parser->parse_external(f, "cam", "time_analysis", time_analysis, false);
     parser->parse_external(f, "cam", "use_stereo", use_stereo);
     parser->parse_external(f, "cam", "max_n", max_n);
