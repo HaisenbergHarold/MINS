@@ -185,6 +185,8 @@ WheelData ROSHelper::JointState2Data(const sensor_msgs::msg::JointState::ConstSh
 shared_ptr<pcl::PointCloud<pcl::PointXYZ>> ROSHelper::rosPC2pclPC(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, int lidar_id) {
   auto cloud = make_shared<pcl::PointCloud<pcl::PointXYZ>>();
   pcl::fromROSMsg(*msg, *cloud);
+  // Override frame_id with numeric lidar ID for internal use (UpdaterLidar expects a numeric frame_id)
+  cloud->header.frame_id = std::to_string(lidar_id);
   return cloud;
 }
 

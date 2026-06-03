@@ -6,5 +6,6 @@ imu:
   gyro_noise: 1.7453e-03     # [ rad / s / sqrt(Hz) ]   ( gyro "white noise" )
   gyro_bias: 1.0000e-04       # [ rad / s^2 / sqrt(Hz) ] ( gyro bias diffusion )
   topic: "/zeron/localization/daoyuan/imu_info"
+  # topic: "/zeron/localization/lidar_loc/imu_info"
   # Flag to enable DaoYuan custom IMU message parsing
   use_daoyuan_msg: true

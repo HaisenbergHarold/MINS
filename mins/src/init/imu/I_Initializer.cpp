@@ -41,7 +41,6 @@ using namespace mins;
 using namespace ov_core;
 
 bool I_Initializer::initialization(Matrix<double, 17, 1> &imustate) {
-
   // Return if we don't have any measurements
   if (imu_pp->imu_data.size() < 2) {
     return false;
@@ -102,18 +101,19 @@ bool I_Initializer::initialization(Matrix<double, 17, 1> &imustate) {
   a_var_2to1 = std::sqrt(a_var_2to1 / ((int)window_2to1.size() - 1));
   // PRINT2(BOLDGREEN "[INIT-IMU]: IMU excitation, %.4f,%.4f\n" RESET, a_var_1to0, a_var_2to1);
 
-  // If it is below the threshold and we want to wait till we detect a jerk
-  if (a_var_1to0 < op->init->imu_thresh) {
-    PRINT2(YELLOW "[INIT-IMU]: %.2f no IMU excitation, below threshold %.4f < %.4f\n" RESET, newesttime, a_var_1to0, op->init->imu_thresh);
-    return false;
-  }
+  // if we assume there is no constant-vel motion in the beginning, no need to detect jerk
+  // // If it is below the threshold and we want to wait till we detect a jerk
+  // if (a_var_1to0 < op->init->imu_thresh) {
+  //   PRINT2(YELLOW "[INIT-IMU]: %.2f no IMU excitation, below threshold %.4f < %.4f\n" RESET, newesttime, a_var_1to0, op->init->imu_thresh);
+  //   return false;
+  // }
 
-  // We should also check that the old state was below the threshold!
-  // This is the case when we have started up moving, and thus we need to wait for a period of stationary motion
-  if (a_var_2to1 > op->init->imu_thresh) {
-    PRINT2(YELLOW "[INIT-IMU]: %.2f too much IMU excitation, above threshold %.4f > %.4f\n" RESET, newesttime, a_var_2to1, op->init->imu_thresh);
-    return false;
-  }
+  // // We should also check that the old state was below the threshold!
+  // // This is the case when we have started up moving, and thus we need to wait for a period of stationary motion
+  // if (a_var_2to1 > op->init->imu_thresh) {
+  //   PRINT2(YELLOW "[INIT-IMU]: %.2f too much IMU excitation, above threshold %.4f > %.4f\n" RESET, newesttime, a_var_2to1, op->init->imu_thresh);
+  //   return false;
+  // }
 
   // Get z axis, which aligns with -g (z_in_G=0,0,1)
   Vector3d z_axis = a_avg_2to1 / a_avg_2to1.norm();
